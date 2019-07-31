@@ -33,7 +33,7 @@ Write-Host ((Get-Date -Format F)) -ForegroundColor DarkYellow
 Write-Host ""
 $ErrorActionPreference = "Stop";
 #endregion - Top Level Script Settings
-########################################################################################################################################
+###########################################################################################################################################
 #region - HEADER v1.2.7
 #region - ChangeLog
 # v1.0.0 - 2018-01-01 - Various Iterations
