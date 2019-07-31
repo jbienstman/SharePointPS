@@ -264,7 +264,7 @@ $deleteMissingFeatures = $False
 $deleteMissingSetupFiles = $False
 #
 #endregion - MAIN SCRIPT VARIABLES
-########################################################################################################################################
+###########################################################################################################################################
 #region - MAIN
 #region - Output Script Title
 Write-Host
@@ -471,12 +471,7 @@ foreach ($errorDatabase in $errorDatabases)
             #region - SQL Query
             $databaseServer = (Get-SPContentDatabase $errorDatabase.Name).Server
             $sqlQueryWebPart = "SELECT DISTINCT AllDocs.Id as DocId, AllDocs.SiteId, AllDocs.WebId, AllDocs.DirName, AllDocs.LeafName, AllDocs.ListId, tp_ZoneID, tp_DisplayName, tp_Class, tp_ID, tp_WebPartIdProperty, tp_PageVersion FROM AllDocs WITH (NoLOCK) INNER JOIN AllWebParts on AllDocs.Id = AllWebParts.tp_PageUrlID WHERE AllWebParts.tp_WebPartTypeID = '$webpartClass' ORDER BY DocId, tp_ID, tp_PageVersion"
-            # $sqlQueryWebPart = "SELECT DISTINCT Id, SiteId, WebId, DirName, LeafName, ListId, tp_ZoneID, tp_DisplayName from AllDocs WITH (NoLOCK) inner join AllWebParts on AllDocs.Id = AllWebParts.tp_PageUrlID where AllWebParts.tp_WebPartTypeID = '$webpartClass' ORDER BY SiteId, DirName, LeafName"
-            # $sqlQueryWebPart = "SELECT DISTINCT AllDocs.Id as DocId, AllDocs.SiteId, AllDocs.WebId, AllDocs.DirName, AllDocs.LeafName, AllDocs.ListId, tp_ZoneID, tp_DisplayName, tp_ID, tp_WebPartIdProperty, tp_PageVersion, tp_Class FROM AllDocs WITH (NoLOCK) INNER JOIN AllWebParts on AllDocs.Id = AllWebParts.tp_PageUrlID WHERE AllWebParts.tp_WebPartTypeID = '32399e31-629e-b2d2-22ad-cb5a517ab839' ORDER BY DocId, tp_ID, tp_PageVersion"
-            # $missingWebParts = Run-SQLQuery -SqlServer "SQL-SP-PP\SQLSPPP" -SqlDatabase "Sp_pp_epteampoc3" -SqlQuery $sqlQueryWebPart                        
             $missingWebParts = Run-SQLQuery -SqlServer $databaseServer -SqlDatabase $errorDatabase.Name -SqlQuery $sqlQueryWebPart                        
-            # $missingWebParts | Where-Object {$_.LeafName -ne $null} | Select-Object -Property LeafName -Unique
-            # the First row returned by the query result is the number of results, but not an actual result - need to filter
             #endregion - SQL Query
             #region - Iteration
             Write-Host ("+ " + $missingDependency.Category + ": [" + $webpartClass.ToUpper() + "] Occurs `"" + $webpartOccurences + "`" times in DB: `"" + $errorDatabase.Name.ToUpper() + "`"") -ForegroundColor Magenta           
@@ -555,19 +550,8 @@ foreach ($errorDatabase in $errorDatabases)
                     }
                 $i++
                 #endregion - Write Number and Name
-                #region - NOTE
-                <#Event Host Type: https://msdn.microsoft.com/en-us/library/ee394866.aspx
-                -1 "The Event Host Type is invalid."
-                0 "The event host is a site collection"
-                1 "The event host is a site."
-                2 "The event host is a list."
-                3 "The event host is a list item."
-                4 "The event host is a content type."
-                5 "The event host is a workflow."
-                6 "The event host is a feature."
-                #>
-                #endregion - NOTE
                 #region - Determine the Missing Assembly Scope
+                # NOTE: Event Host Type: https://msdn.microsoft.com/en-us/library/ee394866.aspx                
                 switch ($missingAssembly.HostType) {
                 "-1" {$missingAssemblyScope = "Invalid"; break}
                 "0" {$missingAssemblyScope = "Site"; break}
@@ -925,10 +909,10 @@ else
 WriteCharLine -lineFillCharacter $lineFillCharacter -lineLength $lineLength -lineColor $lineColor
 #endregion - Write Report CSV
 #endregion - MAIN
-########################################################################################################################################
+###########################################################################################################################################
 }
 #endregion - TRY
-########################################################################################################################################
+###########################################################################################################################################
 #region - Catch & Finally
 catch
 {
@@ -957,4 +941,4 @@ finally
     #endregion - Finally
 }
 #endregion - Catch & Finally
-########################################################################################################################################
+###########################################################################################################################################
