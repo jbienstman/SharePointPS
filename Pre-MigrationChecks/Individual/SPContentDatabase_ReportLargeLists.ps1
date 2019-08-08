@@ -4,7 +4,8 @@
     # Author: Jim B.
     ########################################################################################################################################
     # Revision(s)
-    # 1.2.0  Initial Commit to GitHub
+    # 1.2.0 - 2019-08-08 - Initial Commit to GitHub
+    # 1.3.0 - 2019-08-08 - Updated to also report the Large Lists and create a separate CSV output, fixed exlusion via Web Application
     ########################################################################################################################################
 .SYNOPSIS
     Scans SharePoint 2013 & 2016 Databases for Large Lists and reports then in an xml 
@@ -165,13 +166,16 @@ Write-Host
 #region - Getting Top Level Stuff
 $farm = Get-SPFarm
 $webApps = Get-SPWebApplication
-$allDbs = Get-SPDatabase | Where-Object {($_.Type -eq "Content Database") -and ($_.WebApplication -notlike "*SPAdministrationWebApplication*") -and ($_.WebApplication -notlike $webApplicationExclusionString)}
-$allFilteredDatabases = $allDbs | Where-Object {$_.Name -notlike $databaseNameExclusionString}
+$allDbs = Get-SPDatabase | Where-Object {($_.Type -eq "Content Database") -and ($_.WebApplication -notlike "*SPAdministrationWebApplication*")}
+$allDbsFilteredWebApp = Get-SPDatabase | Where-Object {($_.Type -eq "Content Database") -and ($_.WebApplication -notlike "*SPAdministrationWebApplication*") -and ($_.WebApplication -notlike $webApplicationExclusionString)}
+$allFilteredDatabases = $allDbsFilteredWebApp | Where-Object {$_.Name -notlike $databaseNameExclusionString}
 Write-Host ("Content Databases to Iterate: " ) -NoNewline
 Write-Host $allFilteredDatabases.Count -ForegroundColor Cyan -NoNewline
 Write-Host (" - Excluding: ") -NoNewline
-Write-Host ($allDbs.count - $allFilteredDatabases.Count) -NoNewline -ForegroundColor Gray
-Write-Host (" (Filter: ") -NoNewline
+Write-Host ($allDbs.count - $allFilteredDatabases.Count) -NoNewline -ForegroundColor Yellow
+Write-Host (" (FilterWebApp: ") -NoNewline
+Write-Host $webApplicationExclusionString -ForegroundColor Gray -NoNewline
+Write-Host (" | FilterDB: ") -NoNewline
 Write-Host $databaseNameExclusionString -ForegroundColor Gray -NoNewline
 Write-Host (") databases from iteration...")
 Write-Host
@@ -243,7 +247,7 @@ foreach ($SPwebApp in $webApps)
             {
             $spSiteHasRootWeb = $false
             $null = $xmlSiteCollectionElement
-            $xmlSiteCollectionElement = $xmlFile.CreateElement("SiteCollection")
+            $xmlSiteCollectionElement = $xmlFile.CreateElement("SPSite")
             $xmlSiteCollectionElement.SetAttribute("Url",$spSite.Url)
             $rootWeb = Get-SPWeb -Site $spSite.Url -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
                     if ($rootWeb.WebTemplate)
@@ -263,7 +267,7 @@ foreach ($SPwebApp in $webApps)
                     {
                     $webHasLargeList = $false
                     $null = $xmlSPWebElement
-                    $xmlSPWebElement = $xmlFile.CreateElement("spweb")
+                    $xmlSPWebElement = $xmlFile.CreateElement("SPWeb")
                     $xmlSPWebElement.SetAttribute("Url",$SPweb.Url)
                     $xmlSPWebElement.SetAttribute("IsRootWeb",$SPweb.IsRootWeb)
                     $xmlSPWebElement.SetAttribute("HasUniquePerm",$SPweb.HasUniquePerm)
@@ -279,7 +283,7 @@ foreach ($SPwebApp in $webApps)
                             $farmLargeListCount++
                             $webHasLargeList = $true
                             $null = $xmlSPListElement
-                            $xmlSPListElement = $xmlFile.CreateElement("splist")
+                            $xmlSPListElement = $xmlFile.CreateElement("SPList")
                             $xmlSPListElement.SetAttribute("Title",$SPlist.Title)
                             $xmlSPListElement.SetAttribute("Url",($SPwebApp.Url.TrimEnd("/") + $SPlist.DefaultViewUrl))
                             $xmlSPListElement.SetAttribute("Items",$SPlist.ItemCount)
@@ -318,8 +322,36 @@ foreach ($SPwebApp in $webApps)
     $xmlRootElement.SetAttribute("LargeLists",$farmLargeListCount)
     $xmlFile.Save($xmlFilePath)
 Write-Host
-Write-Host ("You can find the XML report here: `"" + $xmlFilePath + "`"") -ForegroundColor Yellow
+Write-Host ("You can find the XML report here: `"" + $xmlFilePath + "`"") -ForegroundColor Gray
 #endregion - Farm Iteration
+#region - Retrieve Input XML
+[xml]$XMLFile = Get-Content $xmlFilePath
+#endregion - Retrieve Input XML
+#region - parsing
+$largeLists = $XMLFile.farm.webapplication.database.spsite.spweb.splist
+$largeListsCount = ($largeLists | Measure-Object).Count
+if ($largeListsCount -gt 0)
+    {
+    [array]$ArrayOfListObjects = @()
+    Write-Host ("Found " + $largeListsCount + " Large Lists - Parsing") -ForegroundColor Yellow -NoNewline
+    foreach ($splist in $largeLists)
+        {    
+        $ArrayOfListObjects += $splist    
+        }
+    Write-Host " ...Done" -ForegroundColor Green
+    #region - output    
+    $csvFilePath = ($xmlFilePath.TrimEnd(".xml") + ".csv")
+    $ArrayOfListObjects | Select-Object Title, Url, Items | Export-Csv -Path $csvFilePath -Encoding UTF8
+    Write-Host ("You can find the CSV report with the Large Lists here: `"" + $csvFilePath + "`"") -ForegroundColor Gray
+    #endregion - output
+    }
+else
+    {
+    Write-Host ("NO Lists with more than `"" + $itemCountThreshold + "`" items was found.") -ForegroundColor Green
+    }
+#endregion - parsing
+
+
 ########################################################################################################################################
 }
 #endregion - TRY
