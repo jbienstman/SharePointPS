@@ -252,6 +252,26 @@ Function Run-SQLQuery {
     $DataSet.Tables[0]
     #help Run-SQLQuery -Examples
     }
+Function AskYesNoQuestion {
+    <#
+    .EXAMPLE
+        AskYesNoQuestion ("Your Question Text Here?")
+    #>
+    Param (
+        [Parameter(Mandatory=$true)][string]$Question ,
+        [Parameter(Mandatory=$false)][string]$ForegroundColor = "White",        
+        [Parameter(Mandatory=$false)][string]$Choice1 = "y" ,
+        [Parameter(Mandatory=$false)][string]$Choice2 = "n"
+    )    
+    $QuestionSuffix = "[$Choice1/$Choice2]"
+    Do {Write-Host ($Question) -ForegroundColor $ForegroundColor -NoNewline;[string]$CheckAnswer = Read-Host $QuestionSuffix}
+    Until ($CheckAnswer -eq $Choice1 -or $CheckAnswer -eq $Choice2)
+    Switch ($CheckAnswer)
+        {            
+            $Choice1 {Return $True}
+            $Choice2 {Return $False}
+        }  
+}
 #endregion - Function(s)
 ###########################################################################################################################################
 #region - MAIN SCRIPT VARIABLES
