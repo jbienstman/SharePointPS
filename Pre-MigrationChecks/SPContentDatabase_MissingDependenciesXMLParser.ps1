@@ -727,7 +727,14 @@ foreach ($errorDatabase in $errorDatabases)
                 $web = Get-SPWeb -Site $missingSetupFile.SiteId -Id $missingSetupFile.WebId
                 $site = $web.Site
                 $missingFile = $web.GetFile([Guid]$missingSetupFile.Id)
-                $MissingSetupFileUrl = ($web.Site.WebApplication.Url.TrimEnd("/") + $missingFile.ServerRelativeUrl)
+                if ($site.HostheaderIsSiteName)
+                    {
+                    $MissingSetupFileUrl = ($site.Url.TrimEnd("/") + $missingFile.ServerRelativeUrl)
+                    }
+                else
+                    {
+                    $MissingSetupFileUrl = ($web.Site.WebApplication.Url.TrimEnd("/") + $missingFile.ServerRelativeUrl)
+                    }
                 Write-Host (" - " + $MissingSetupFileUrl) -ForegroundColor Gray                    
                 #endregion - Get Missing Setup File Url
                 #region - Build Web Owner String
