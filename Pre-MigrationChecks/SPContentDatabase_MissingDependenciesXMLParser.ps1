@@ -1,7 +1,7 @@
-﻿<#
+<#
 .NOTES
     #######################################################################################################################################
-    # Author: jimmy.bienstman@microsoft.com
+    # Author: Jim B.
     #######################################################################################################################################
     # Revision(s)
     # 0.0.1 - 2018-10-09 - Initial Version
@@ -12,6 +12,8 @@
     # 1.0.6 - 2018-10-18 - Cleanup Code, working cleanup of Missing Features and Setup Files
     # 1.0.7 - 2018-11-12 - Replaced Header 1.2.4 with 1.2.5, Tested on additional environments - improving stability
     # 1.1.0 - 2019-07-31 - Cleanup, Updated Header version 1.2.7, only included needed functions
+    # 1.1.1 - 2020-11-23 - Fixed a problem with report on MissingSetupFiles - was not showing the leafname of the correct dependency:
+    #                    --> Moved the Write-Host to inside the loop line 727, also added the .leafname property to be displayed correctly
     #######################################################################################################################################
 .SYNOPSIS
     ...
@@ -372,7 +374,7 @@ foreach ($errorDatabase in $errorDatabases)
             #endregion - Get Missing Dependency Info
             #region - SQL Query            
             $databaseServer = (Get-SPContentDatabase $errorDatabase.Name).Server
-            $sqlQueryFeatures = "SELECT DISTINCT F.SiteId, F.WebId, F.FeatureId FROM [dbo].[Features] AS F WITH (NoLOCK) WHERE F.FeatureId IN ('$featureId')"            
+            $sqlQueryFeatures = "SELECT DISTINCT F.SiteId, F.WebId, F.FeatureId FROM [dbo].[Features] AS F WITH (NoLOCK) WHERE F.FeatureId IN ('$featureId')"            
             $missingFeatures = Run-SQLQuery -SqlServer $databaseServer -SqlDatabase $errorDatabase.Name -SqlQuery $sqlQueryFeatures
             #endregion - SQL Query
             #region - Iteration
@@ -720,9 +722,9 @@ foreach ($errorDatabase in $errorDatabases)
             $missingSetupFiles = Run-SQLQuery -SqlServer $databaseServer -SqlDatabase $errorDatabase.Name -SqlQuery $sqlQuerySetupFile
             #endregion - SQL Query
             #region - Iteration 
-            Write-Host ("+ " + $missingDependency.Category + ": [" + $MissingSetupFile + "]" + " has `"" + $MissingSetupFileOccurences + "`" occurences in database `"" + $errorDatabase.Name + "`"") -ForegroundColor DarkGray
             foreach ($missingSetupFile in ($missingSetupFiles | Where-Object {$_.Id -ne $null}))
                 {
+                Write-Host ("+ " + $missingDependency.Category + ": [" + $MissingSetupFile.LeafName + "]" + " has `"" + $MissingSetupFileOccurences + "`" occurences in database `"" + $errorDatabase.Name + "`"") -ForegroundColor DarkGray
                 #region - Get Missing Setup File Url
                 $web = Get-SPWeb -Site $missingSetupFile.SiteId -Id $missingSetupFile.WebId
                 $site = $web.Site
