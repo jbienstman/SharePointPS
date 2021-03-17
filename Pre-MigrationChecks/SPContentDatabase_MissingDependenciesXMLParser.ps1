@@ -274,6 +274,72 @@ Function AskYesNoQuestion {
             $Choice2 {Return $False}
         }  
 }
+Function Remove-SPFeature {
+    <#
+    .SYNOPSIS
+    This function is called by Remove-SPFeatureFromContentDB, but could be used directly if needed
+    .EXAMPLE
+    Remove-SPFeature -obj $_ -objName "site" -featId $FeatureId -report $report
+    #>
+    Param (
+        [Parameter(Mandatory=$true)][psobject]$obj ,
+        [Parameter(Mandatory=$true)][string]$objName ,
+        [Parameter(Mandatory=$true)][string]$featId ,
+        [Parameter(Mandatory=$true)][bool]$report
+    )
+    $feature = $obj.Features[$featId]
+    
+    if ($feature -ne $null)
+        {
+        if ($report)
+            {
+            write-host ("found in " + $objName + ": "  + $obj.Url) -foregroundcolor Red
+            #return ($objName + ":"  + $obj.Url)
+            }
+        else
+            {
+            try 
+                {
+                $obj.Features.Remove($feature.DefinitionId, $true)
+                write-host "Feature successfully removed from`"" + $objName + "`" : " + $obj.Url -foregroundcolor Yellow
+                }
+            catch
+                {
+                write-host ("There has been an error trying to remove the feature:" + $_)
+                }
+            }
+        }
+    else
+        {
+        write-host ("Feature ID specified does not exist in `"" + $objName + "`" : " + $obj.Url)
+        }
+    }
+Function Remove-SPFeatureFromContentDB {
+    <#
+    .SYNOPSIS
+    This function is meant to be called directly
+    .EXAMPLE
+    Remove-SPFeatureFromContentDB -ContentDb "SQLDATABASENAME" -FeatureId "xxx-xxxx-xxxxxx" -ReportOnly
+    #>
+    Param (
+        [Parameter(Mandatory=$true)][string]$ContentDb ,
+        [Parameter(Mandatory=$true)][string]$FeatureId ,
+        [Parameter(Mandatory=$true)][switch]$ReportOnly
+    )
+    $database = Get-SPDatabase | where { $_.Name -eq $ContentDb }
+    [bool]$report = $false
+    if ($ReportOnly) { $report = $true }
+    
+    $database.Sites | ForEach-Object {
+        
+        Remove-SPFeature -obj $_ -objName "SPSite" -featId $FeatureId -report $report
+                
+        $_ | Get-SPWeb -Limit all -WarningAction SilentlyContinue | ForEach-Object {
+            
+            Remove-SPFeature -obj $_ -objName "SPWeb" -featId $FeatureId -report $report
+        }
+    }
+}
 #endregion - Function(s)
 ###########################################################################################################################################
 #region - MAIN SCRIPT VARIABLES
