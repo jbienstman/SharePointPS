@@ -274,6 +274,31 @@ Function AskYesNoQuestion {
             $Choice2 {Return $False}
         }  
 }
+Function Get-AssociatedOwnerGroupUsers {
+    <#
+    .EXAMPLE
+        Get-AssociatedOwnerGroupUsers -Web $web
+    #>
+    Param (
+        [Parameter(Mandatory=$true)][psobject]$web
+    )    
+    #region - Build Web Owner String
+    [string]$webOwnerList = ""
+    if ($web.AssociatedOwnerGroup.Users -ne $null)
+        {
+        $webOwnerList = ""
+        foreach ($webOwner in $web.AssociatedOwnerGroup.Users)
+            {
+            $webOwnerList += ("`"" + $webOwner.DisplayName + "`",")
+            }
+        }
+    else
+        {
+        $webOwnerList = "No AssociatedOwnerGroup exists"
+        }
+    return $webOwnerList
+    #endregion - Build Web Owner String
+}
 Function Remove-SPFeature {
     <#
     .SYNOPSIS
@@ -497,11 +522,7 @@ foreach ($errorDatabase in $errorDatabases)
                             }                        
                         #endregion - Get Feature Url    
                         #region - Build Web Owner String
-                        $webOwnerList = ""
-                        foreach ($webOwner in $web.AssociatedOwnerGroup.Users)
-                            {
-                            $webOwnerList += ("`"" + $webOwner.DisplayName + "`",")
-                            }    
+                        Get-AssociatedOwnerGroupUsers -web $web
                         #endregion - Build Web Owner String
                         #region - Build & Add Object to the Array       
                         $missingDependencyObject = New-Object –TypeName PSObject
@@ -582,11 +603,7 @@ foreach ($errorDatabase in $errorDatabases)
                 Write-Host $webPartUrl -NoNewline -ForegroundColor White
                 Write-Host (" - (" + $i + " Occurrences)") -ForegroundColor DarkGray                
                 #region - Build Web Owner String
-                $webOwnerList = ""
-                foreach ($webOwner in $web.AssociatedOwnerGroup.Users)
-                    {
-                    $webOwnerList += ("`"" + $webOwner.DisplayName + "`",")
-                    } 
+                Get-AssociatedOwnerGroupUsers -web $web
                 #endregion - Build Web Owner String
                 #region - Build & Add Object to the Array 
                 $missingDependencyObject = New-Object –TypeName PSObject
@@ -745,11 +762,7 @@ foreach ($errorDatabase in $errorDatabases)
                     }
                 #endregion - Get Assembly Web URL
                 #region - Build Web Owner String
-                $webOwnerList = ""
-                foreach ($webOwner in $web.AssociatedOwnerGroup.Users)
-                    {
-                    $webOwnerList += ("`"" + $webOwner.DisplayName + "`",")
-                    } 
+                Get-AssociatedOwnerGroupUsers -web $web
                 #endregion - Build Web Owner String
                 #region - Build & Add Object to the Array                 
                 $missingDependencyObject = New-Object –TypeName PSObject
@@ -806,11 +819,7 @@ foreach ($errorDatabase in $errorDatabases)
                 Write-Host (" - " + $MissingSetupFileUrl) -ForegroundColor Gray                    
                 #endregion - Get Missing Setup File Url
                 #region - Build Web Owner String
-                $webOwnerList = ""
-                foreach ($webOwner in $web.AssociatedOwnerGroup.Users)
-                    {
-                    $webOwnerList += ("`"" + $webOwner.DisplayName + "`",")
-                    }  
+                Get-AssociatedOwnerGroupUsers -web $web
                 #endregion - Build Web Owner String
                 #region - Build & Add Object to the Array                  
                 $missingDependencyObject = New-Object –TypeName PSObject
