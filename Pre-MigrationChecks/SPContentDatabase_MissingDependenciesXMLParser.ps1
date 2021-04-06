@@ -14,6 +14,7 @@
     # 1.1.0 - 2019-07-31 - Cleanup, Updated Header version 1.2.7, only included needed functions
     # 1.1.1 - 2020-11-23 - Fixed a problem with report on MissingSetupFiles - was not showing the leafname of the correct dependency:
     #                    --> Moved the Write-Host to inside the loop line 727, also added the .leafname property to be displayed correctly
+    # 1.2.0 - 2021-04-06 - Updated Remove-SPFeatureFromContentDB variable, $webOwnerList correctly updated now  
     #######################################################################################################################################
 .SYNOPSIS
     ...
@@ -277,14 +278,14 @@ Function AskYesNoQuestion {
 Function Get-AssociatedOwnerGroupUsers {
     <#
     .EXAMPLE
-        Get-AssociatedOwnerGroupUsers -Web $web
+        $webOwnerList = Get-AssociatedOwnerGroupUsers -web $web
     #>
     Param (
         [Parameter(Mandatory=$true)][psobject]$web
     )    
     #region - Build Web Owner String
     [string]$webOwnerList = ""
-    if ($web.AssociatedOwnerGroup.Users -ne $null)
+    if ($null -ne $web.AssociatedOwnerGroup.Users)
         {
         $webOwnerList = ""
         foreach ($webOwner in $web.AssociatedOwnerGroup.Users)
@@ -312,9 +313,10 @@ Function Remove-SPFeature {
         [Parameter(Mandatory=$true)][string]$featId ,
         [Parameter(Mandatory=$true)][bool]$report
     )
+    $feature = $null
     $feature = $obj.Features[$featId]
-    
-    if ($feature -ne $null)
+    #$feature.Count
+    if ($null -ne $feature)
         {
         if ($report)
             {
@@ -344,17 +346,15 @@ Function Remove-SPFeatureFromContentDB {
     .SYNOPSIS
     This function is meant to be called directly
     .EXAMPLE
-    Remove-SPFeatureFromContentDB -ContentDb "SQLDATABASENAME" -FeatureId "xxx-xxxx-xxxxxx" -ReportOnly
+    Remove-SPFeatureFromContentDB -ContentDb "SQLDATABASENAME" -FeatureId "xxx-xxxx-xxxxxx" -deleteMissingFeatures:$true
     #>
     Param (
         [Parameter(Mandatory=$true)][string]$ContentDb ,
         [Parameter(Mandatory=$true)][string]$FeatureId ,
-        [Parameter(Mandatory=$true)][switch]$ReportOnly
+        [Parameter(Mandatory=$true)][bool]$deleteMissingFeatures
     )
-    $database = Get-SPDatabase | where { $_.Name -eq $ContentDb }
-    [bool]$report = $false
-    if ($ReportOnly) { $report = $true }
-    
+    $database = Get-SPDatabase | Where-Object { $_.Name -eq $ContentDb }
+    if ($deleteMissingFeatures) {$report = $false} else {$report = $true}
     $database.Sites | ForEach-Object {
         
         Remove-SPFeature -obj $_ -objName "SPSite" -featId $FeatureId -report $report
@@ -373,8 +373,8 @@ $scriptAction = "Missing Dependencies Parser"
 $startDateTime = Get-date -Format yyyyMMddHHmmss
 $missingDependenciesXMLReportFilter = "MissingDependenciesReport*.xml"
 #
-$deleteMissingFeatures = $False
-$deleteMissingSetupFiles = $False
+$deleteMissingFeatures = $True
+$deleteMissingSetupFiles = $True
 #
 #endregion - MAIN SCRIPT VARIABLES
 ###########################################################################################################################################
@@ -522,7 +522,7 @@ foreach ($errorDatabase in $errorDatabases)
                             }                        
                         #endregion - Get Feature Url    
                         #region - Build Web Owner String
-                        Get-AssociatedOwnerGroupUsers -web $web
+                        $webOwnerList = Get-AssociatedOwnerGroupUsers -web $web
                         #endregion - Build Web Owner String
                         #region - Build & Add Object to the Array       
                         $missingDependencyObject = New-Object –TypeName PSObject
@@ -543,7 +543,7 @@ foreach ($errorDatabase in $errorDatabases)
                             if ($removeFeature -eq $true)
                                 {
                                 Write-Host ("    - Removing")
-                                Remove-SPFeatureFromContentDB -ContentDB $databaseName -FeatureId $featureId –ReportOnly #Remove the REPORTONLY safety to apply changes
+                                Remove-SPFeatureFromContentDB -ContentDB $databaseName -FeatureId $featureId –DeleteMissingFeatures:$deleteMissingFeatures
                                 Write-Host ("...Done") -ForegroundColor Green
                                 }
                             else
@@ -603,7 +603,7 @@ foreach ($errorDatabase in $errorDatabases)
                 Write-Host $webPartUrl -NoNewline -ForegroundColor White
                 Write-Host (" - (" + $i + " Occurrences)") -ForegroundColor DarkGray                
                 #region - Build Web Owner String
-                Get-AssociatedOwnerGroupUsers -web $web
+                $webOwnerList = Get-AssociatedOwnerGroupUsers -web $web
                 #endregion - Build Web Owner String
                 #region - Build & Add Object to the Array 
                 $missingDependencyObject = New-Object –TypeName PSObject
@@ -762,7 +762,7 @@ foreach ($errorDatabase in $errorDatabases)
                     }
                 #endregion - Get Assembly Web URL
                 #region - Build Web Owner String
-                Get-AssociatedOwnerGroupUsers -web $web
+                $webOwnerList = Get-AssociatedOwnerGroupUsers -web $web
                 #endregion - Build Web Owner String
                 #region - Build & Add Object to the Array                 
                 $missingDependencyObject = New-Object –TypeName PSObject
@@ -819,7 +819,7 @@ foreach ($errorDatabase in $errorDatabases)
                 Write-Host (" - " + $MissingSetupFileUrl) -ForegroundColor Gray                    
                 #endregion - Get Missing Setup File Url
                 #region - Build Web Owner String
-                Get-AssociatedOwnerGroupUsers -web $web
+                $webOwnerList = Get-AssociatedOwnerGroupUsers -web $web
                 #endregion - Build Web Owner String
                 #region - Build & Add Object to the Array                  
                 $missingDependencyObject = New-Object –TypeName PSObject
