@@ -1,4 +1,4 @@
-﻿<#
+<#
 .NOTES
     ########################################################################################################################################
     # Author: Jim B.
@@ -17,6 +17,7 @@
     # 1.5.0  2018-10-09 - NOTE: Need to include large list check
     # 1.5.2  2019-07-19 - Updated User Policy to Function, using proper XML constructor now...
     # 1.6.0  2019-07-29 - Added Large List Check, changed XML to include Web Application & Updated Header and cleanup of various typos and stuff
+    # 1.6.1  2021-04-06 - Added condition to detect whether a database actually contains sites before doing site related tests
     #
     ########################################################################################################################################
 .SYNOPSIS
@@ -320,122 +321,133 @@ foreach ($SPwebApp in $webApps)
         Write-Host ("{0}{1,$spacesDbName}" -f $db.DisplayName, ":") -NoNewline ;
         $databaseCounterIndex++
         #endregion - Formatted String Output
-        #region - Get Orphans
-        [xml]$orphanedObjects = $db.Repair($false)
-        $NumberOfOrphans = $orphanedObjects.OrphanedObjects.Count    
-        #endregion - Get Orphans
-        #region - Get dbErrors
-        $dbErrors = Test-SPContentDatabase -Name $db.DisplayName -WebApplication $db.WebApplication.Url -ServerInstance $db.Server
-        #endregion - Get dbErrors
         #region - Xml Database 
         $xmlDatabaseElement = $xmlFile.CreateElement("Database")
         $null = $xmlDatabaseElement
         $xmlDatabaseElement.SetAttribute("DisplayName",$db.DisplayName)
-        if (Get-SPSite -ContentDatabase $db.DisplayName -Limit All -ErrorAction SilentlyContinue -WarningAction SilentlyContinue| Where-Object {$_.CompatibilityLevel -ne $farm.BuildVersion.Major.ToString()})    
-            {        
-            Write-Host " HasCompatabilityModeSPSite: " -NoNewline
-            Write-Host "True" -NoNewline -ForegroundColor Yellow
-            $xmlDatabaseElement.SetAttribute("HasCompatabilityModeSPSite","True")
-            }
-        else
-            {        
-            Write-Host " HasCompatabilityModeSPSite: " -NoNewline
-            Write-Host "False" -NoNewline -ForegroundColor Cyan
-            $xmlDatabaseElement.SetAttribute("HasCompatabilityModeSPSite","False")
-            }
-        $xmlDatabaseElement.SetAttribute("NeedsUpgrade",$db.NeedsUpgrade)
-        $xmlDatabaseElement.SetAttribute("NeedsUpgradeIncludeChildren",$db.NeedsUpgradeIncludeChildren)
-        if (Get-SPSite -ContentDatabase $db.DisplayName -Limit all -ErrorAction SilentlyContinue  -WarningAction SilentlyContinue| Where-Object {$_.NeedsUpgrade -eq $true})
+        $xmlDatabaseElement.SetAttribute("Sites",$db.CurrentSiteCount)
+        if ($db.CurrentSiteCount -gt 0)
             {
-            $xmlDatabaseElement.SetAttribute("SPSiteWithNeedsUpgrade","True")
-            }
-        else
-            {
-            $xmlDatabaseElement.SetAttribute("SPSiteWithNeedsUpgrade","False")
-            }
-        $xmlDatabaseElement.SetAttribute("Server",$db.Server)
-        #region - Orphan Output
-        if ($NumberOfOrphans -gt "0")
-            {   
-            $OrphanTypes = ""
-            Write-Host " - Orphans: " -NoNewline
-            Write-Host $NumberOfOrphans -NoNewline -ForegroundColor Cyan        
-            Write-Host " (" -NoNewline        
-            foreach ($orphanType in $orphanedObjects.OrphanedObjects.ChildNodes)
+            #region - Get Orphans
+            [xml]$orphanedObjects = $db.Repair($false)
+            $NumberOfOrphans = $orphanedObjects.OrphanedObjects.Count    
+            #endregion - Get Orphans
+            #region - Get dbErrors
+            $dbErrors = Test-SPContentDatabase -Name $db.DisplayName -WebApplication $db.WebApplication.Url -ServerInstance $db.Server
+            #endregion - Get dbErrors
+            Write-Host (" Checking ") -NoNewline
+            If ($farm.BuildVersion.Major -lt 16)
                 {
-                $oType = $orphanType.Type.ToString()
-                $OrphanTypes += ($oType + ",")
-                Write-Host ":$oType " -NoNewline -ForegroundColor Yellow            
+                if (Get-SPSite -ContentDatabase $db.DisplayName -Limit All -ErrorAction SilentlyContinue -WarningAction SilentlyContinue| Where-Object {$_.CompatibilityLevel -ne $farm.BuildVersion.Major.ToString()})    
+                    {                        
+                    Write-Host " HasCompatabilityModeSPSite: " -NoNewline
+                    Write-Host "True" -NoNewline -ForegroundColor Yellow
+                    $xmlDatabaseElement.SetAttribute("HasCompatabilityModeSPSite","True")
+                    }
+                else
+                    {        
+                    Write-Host " HasCompatabilityModeSPSite: " -NoNewline
+                    Write-Host "False" -NoNewline -ForegroundColor Cyan
+                    $xmlDatabaseElement.SetAttribute("HasCompatabilityModeSPSite","False")
+                    }
                 }
-            #region - xmlStringAddAttribute
-            $xmlDatabaseElement.SetAttribute("Orphans",$NumberOfOrphans)
-            $xmlDatabaseElement.SetAttribute("OrphanTypes",$OrphanTypes.Trim(","))
-            #endregion - xmlStringAddAttribute
-            Write-Host ")" -NoNewline  
-            }
-        else
-            {        
-            Write-Host " - Orphans: " -NoNewline
-            Write-Host "None ()" -NoNewline -ForegroundColor Green
-            $xmlDatabaseElement.SetAttribute("Orphans",0)
-            }
-        #endregion - Orphan Output
-        #region - dbErrors Output
-        if ($null -eq $dbErrors)
-            {        
-            Write-Host " - Errors: " -NoNewline
-            write-Host "No " -ForegroundColor Green -NoNewline
-            #region - xmlStringAddAttribute
-            $xmlDatabaseElement.SetAttribute("Errors","False")
-            #endregion - xmlStringAddAttribute
-            }
-        else
-            {        
-            Write-Host " - Errors: " -NoNewline
-            write-Host "Yes " -ForegroundColor Cyan -NoNewline
-            #region - xmlStringAddAttribute
-            $xmlDatabaseElement.SetAttribute("Errors","True")
-            #endregion - xmlStringAddAttribute
-            }    
-        #endregion - dbErrors Output
-        $xmlSPWebApplicationElement.AppendChild($xmlDatabaseElement) | Out-Null
-        $xmlFile.Save($xmlFilePath)
-        #endregion - Xml Database 
-        #region - Xml Site Collection
-        $spSites = Get-SPSite -ContentDatabase $db.DisplayName -Limit all -ErrorAction SilentlyContinue  -WarningAction SilentlyContinue
-        write-Host "(Iterating through " -NoNewline
-        Write-Host $spSites.Count -ForegroundColor Cyan -NoNewline
-        Write-Host " Site Collections)" -NoNewline
-        foreach ($spSite in $spSites)
-            {
-            $spSiteHasRootWeb = $false
-            $null = $xmlSiteCollectionElement
-            $xmlSiteCollectionElement = $xmlFile.CreateElement("SiteCollection")
-            $xmlSiteCollectionElement.SetAttribute("Url",$spSite.Url)
-            $xmlSiteCollectionElement.SetAttribute("CompatibilityLevel",$spSite.CompatibilityLevel)
-            $xmlSiteCollectionElement.SetAttribute("NeedsUpgrade",$spSite.NeedsUpgrade)
-            $rootWeb = Get-SPWeb -Site $spSite.Url -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
-                    if ($rootWeb.WebTemplate)
-                        {
-                        $webCount += $spSite.AllWebs.Count
-                        $xmlSiteCollectionElement.SetAttribute("AllWebs",$spSite.AllWebs.Count.ToString())
-                        $spSiteHasRootWeb = $true
-                        }
-                    else
-                        {
-                        $xmlSiteCollectionElement.SetAttribute("AllWebs",0)
-                        }
-            $xmlSiteCollectionElement.SetAttribute("RecycleBinWebs",($spSite.RecycleBin | Where-Object {$_.ItemType -like "web"}).count)
-            $xmlSiteCollectionElement.SetAttribute("RecycleBinAllItems",$spSite.RecycleBin.Count)
-            $xmlSiteCollectionElement.SetAttribute("HostHeaderIsSiteName",$spSite.HostHeaderIsSiteName)
-            $xmlSiteCollectionElement.SetAttribute("SchemaVersion",$spSite.SchemaVersion.ToString())
-            $xmlDatabaseElement.AppendChild($xmlSiteCollectionElement) | Out-Null
-            $xmlFile.Save($xmlFilePath)
-            if ($spSiteHasRootWeb)
+            else
                 {
-                #region - Xml SPWeb                
-                foreach($SPweb in $SPSite.AllWebs) #SPSite.AllWebs lists ALL Subwebs, no matter how deep the path goes
+                #No Compatibility Mode exists after SharePoint 2013
+                }
+            $xmlDatabaseElement.SetAttribute("NeedsUpgrade",$db.NeedsUpgrade)
+            $xmlDatabaseElement.SetAttribute("NeedsUpgradeIncludeChildren",$db.NeedsUpgradeIncludeChildren)
+            if (Get-SPSite -ContentDatabase $db.DisplayName -Limit all -ErrorAction SilentlyContinue  -WarningAction SilentlyContinue| Where-Object {$_.NeedsUpgrade -eq $true})
+                {
+                $xmlDatabaseElement.SetAttribute("SPSiteWithNeedsUpgrade","True")
+                }
+            else
+                {
+                $xmlDatabaseElement.SetAttribute("SPSiteWithNeedsUpgrade","False")
+                }
+            $xmlDatabaseElement.SetAttribute("Server",$db.Server)
+            #region - Orphan Output
+            if ($NumberOfOrphans -gt "0")
+                {   
+                $OrphanTypes = ""
+                Write-Host " - Orphans: " -NoNewline
+                Write-Host $NumberOfOrphans -NoNewline -ForegroundColor Cyan        
+                Write-Host " (" -NoNewline        
+                foreach ($orphanType in $orphanedObjects.OrphanedObjects.ChildNodes)
                     {
+                    $oType = $orphanType.Type.ToString()
+                    $OrphanTypes += ($oType + ",")
+                    Write-Host ":$oType " -NoNewline -ForegroundColor Yellow            
+                    }
+                #region - xmlStringAddAttribute
+                $xmlDatabaseElement.SetAttribute("Orphans",$NumberOfOrphans)
+                $xmlDatabaseElement.SetAttribute("OrphanTypes",$OrphanTypes.Trim(","))
+                #endregion - xmlStringAddAttribute
+                Write-Host ")" -NoNewline  
+                }
+            else
+                {        
+                Write-Host " - Orphans: " -NoNewline
+                Write-Host "None ()" -NoNewline -ForegroundColor Green
+                $xmlDatabaseElement.SetAttribute("Orphans",0)
+                }
+            #endregion - Orphan Output
+            #region - dbErrors Output
+            if ($null -eq $dbErrors)
+                {        
+                Write-Host " - Errors: " -NoNewline
+                write-Host "No " -ForegroundColor Green -NoNewline
+                #region - xmlStringAddAttribute
+                $xmlDatabaseElement.SetAttribute("Errors","False")
+                #endregion - xmlStringAddAttribute
+                }
+            else
+                {        
+                Write-Host " - Errors: " -NoNewline
+                write-Host "Yes " -ForegroundColor Cyan -NoNewline
+                #region - xmlStringAddAttribute
+                $xmlDatabaseElement.SetAttribute("Errors","True")
+                #endregion - xmlStringAddAttribute
+                }    
+            #endregion - dbErrors Output
+            $xmlSPWebApplicationElement.AppendChild($xmlDatabaseElement) | Out-Null
+            $xmlFile.Save($xmlFilePath)
+            #endregion - Xml Database 
+            #region - Xml Site Collection
+            $spSites = Get-SPSite -ContentDatabase $db.DisplayName -Limit all -ErrorAction SilentlyContinue  -WarningAction SilentlyContinue
+            write-Host "(Iterating through " -NoNewline
+            Write-Host $spSites.Count -ForegroundColor Cyan -NoNewline
+            Write-Host " Site Collections)" -NoNewline
+            foreach ($spSite in $spSites)
+                {
+                $spSiteHasRootWeb = $false
+                $null = $xmlSiteCollectionElement
+                $xmlSiteCollectionElement = $xmlFile.CreateElement("SiteCollection")
+                $xmlSiteCollectionElement.SetAttribute("Url",$spSite.Url)
+                $xmlSiteCollectionElement.SetAttribute("CompatibilityLevel",$spSite.CompatibilityLevel)
+                $xmlSiteCollectionElement.SetAttribute("NeedsUpgrade",$spSite.NeedsUpgrade)
+                $rootWeb = Get-SPWeb -Site $spSite.Url -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+                        if ($rootWeb.WebTemplate)
+                            {
+                            $webCount += $spSite.AllWebs.Count
+                            $xmlSiteCollectionElement.SetAttribute("AllWebs",$spSite.AllWebs.Count.ToString())
+                            $spSiteHasRootWeb = $true
+                            }
+                        else
+                            {
+                            $xmlSiteCollectionElement.SetAttribute("AllWebs",0)
+                            }
+                $xmlSiteCollectionElement.SetAttribute("RecycleBinWebs",($spSite.RecycleBin | Where-Object {$_.ItemType -like "web"}).count)
+                $xmlSiteCollectionElement.SetAttribute("RecycleBinAllItems",$spSite.RecycleBin.Count)
+                $xmlSiteCollectionElement.SetAttribute("HostHeaderIsSiteName",$spSite.HostHeaderIsSiteName)
+                $xmlSiteCollectionElement.SetAttribute("SchemaVersion",$spSite.SchemaVersion.ToString())
+                $xmlDatabaseElement.AppendChild($xmlSiteCollectionElement) | Out-Null
+                $xmlFile.Save($xmlFilePath)
+                if ($spSiteHasRootWeb)
+                    {
+                    #region - Xml SPWeb                
+                    foreach($SPweb in $SPSite.AllWebs) #SPSite.AllWebs lists ALL Subwebs, no matter how deep the path goes
+                                                                                                                                                                                    {
                     $webHasLargeList = $false
                     $null = $xmlSPWebElement
                     $xmlSPWebElement = $xmlFile.CreateElement("spweb")
@@ -475,12 +487,19 @@ foreach ($SPwebApp in $webApps)
                         }
                     $SPweb.Dispose()
                     }
-                #endregion - Xml SPWeb
+                    #endregion - Xml SPWeb
+                    }
                 }
+                $SPsite.Dispose()
+            write-Host "...Done" -ForegroundColor Green
+            #endregion - Xml Site Collection
             }
-            $SPsite.Dispose()
-        write-Host "...Done" -ForegroundColor Green
-        #endregion - Xml Site Collection
+        else
+            {
+            Write-Host (" No sites in this database") -ForegroundColor Yellow
+            $xmlSPWebApplicationElement.AppendChild($xmlDatabaseElement) | Out-Null
+            $xmlFile.Save($xmlFilePath)
+            }
         }
     #endregion - DATABASE ITERATION
     $xmlSPWebApplicationElement.SetAttribute("Webs",$webCount)
